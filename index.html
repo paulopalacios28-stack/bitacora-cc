@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Bitácora C&C">
 <title>Bitácora — Control y Comunicaciones</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" onerror="console.warn('Icons CDN failed')">
+<!-- xlsx se carga bajo demanda -->
 <style>
 :root{
   --bg:#f8f9fa;--surface:#ffffff;--border:#e2e6ea;--border2:#ced4da;
@@ -224,29 +224,6 @@ select{cursor:pointer}
     <button class="close-banner" onclick="hideBanner()" aria-label="Cerrar">×</button>
   </div>
 
-  <!-- DRIVE CONFIG MODAL -->
-  <div id="drive-config-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--surface);border-radius:var(--radius);padding:20px;max-width:420px;width:100%">
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">Configurar Google Drive</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Para sincronizar fotos y datos entre todos tus dispositivos</div>
-      <div class="form-group" style="margin-bottom:10px">
-        <label>Client ID de Google</label>
-        <input type="text" id="cfg-client-id" placeholder="xxxx.apps.googleusercontent.com" style="font-size:11px">
-      </div>
-      <div class="form-group" style="margin-bottom:14px">
-        <label>API Key de Google</label>
-        <input type="text" id="cfg-api-key" placeholder="AIzaSy..." style="font-size:11px">
-      </div>
-      <div style="background:var(--info-bg);border-radius:var(--radius-sm);padding:10px;font-size:11px;color:var(--info-text);margin-bottom:14px">
-        Obtén estas claves en <b>console.cloud.google.com</b> → APIs → Drive API → Credenciales
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn-secondary" onclick="document.getElementById('drive-config-modal').style.display='none'">Cancelar</button>
-        <button class="btn-primary" onclick="guardarConfigDrive()"><i class="ti ti-device-floppy"></i> Guardar y conectar</button>
-      </div>
-    </div>
-  </div>
-
   <div class="topbar">
     <div style="display:flex;align-items:center;gap:11px">
       <div class="logo">C&C</div>
@@ -257,7 +234,7 @@ select{cursor:pointer}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
       <span class="badge-top" id="total-badge">0 registros</span>
-      <span id="sync-badge" onclick="GD_CLIENT_ID?sincronizarManual():abrirConfigDrive()" style="font-size:10px;padding:3px 8px;border-radius:20px;cursor:pointer;display:none;background:var(--green-bg);color:var(--green-text)">☁ Conectar Drive</span>
+      <span id="sync-badge" onclick="sincronizarManual()" style="font-size:10px;padding:3px 8px;border-radius:20px;cursor:pointer;display:none;background:var(--green-bg);color:var(--green-text)">☁ Conectar Drive</span>
     </div>
   </div>
 
@@ -432,7 +409,7 @@ select{cursor:pointer}
         <input type="text" id="buscador" placeholder="Buscar en registros..." oninput="renderHistorial()">
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn-secondary" onclick="GD_CLIENT_ID?sincronizarManual():abrirConfigDrive()" title="Sincronizar con Drive" style="padding:8px 10px"><i class="ti ti-refresh" style="font-size:16px"></i></button>
+        <button class="btn-secondary" onclick="sincronizarManual()" title="Sincronizar con Drive" style="padding:8px 10px"><i class="ti ti-refresh" style="font-size:16px"></i></button>
         <button class="btn-excel" onclick="exportarExcel()"><i class="ti ti-table-export"></i> Excel</button>
       </div>
     </div>
@@ -676,150 +653,55 @@ select{cursor:pointer}
 const SK='bitacora_cc_v2', SSK='sitios_cc_v2', CK='check_cc_v2';
 const INV_KEY='bitacora_inv_v1', ENL_KEY='bitacora_enl_v1', CV_KEY='bitacora_claves_v1', PIN_KEY='bitacora_pin_hash';
 
-// ── Google Drive Sync ─────────────────────────────────────────
-// Usa Google Identity Services (OAuth2 sin backend)
-const GD_CLIENT_ID=localStorage.getItem('gd_client_id')||'698034158767-poli4e81rgr1rkhascmo2694i3b12u51.apps.googleusercontent.com';
-const GD_API_KEY=localStorage.getItem('gd_api_key')||'AlzaSyDSdl_O8T93PZqID4ZVfmXACJJFzR9lqnk';
-const GD_FOLDER_NAME='BitacoraContCom';
-const GD_DATA_FILE='bitacora_data.json';
+// ── Firebase Sync ─────────────────────────────────────────────
+const FB_URL='https://bitacora-contcom-default-rtdb.firebaseio.com';
 let syncTimer=null, isOnline=navigator.onLine;
-let gdReady=false, gdToken=null, gdFolderId=null, gdDataFileId=null;
-let pendingSync=false;
 
-window.addEventListener('online',()=>{isOnline=true;showToast('Red recuperada');if(gdToken)cloudSave();});
+window.addEventListener('online',()=>{isOnline=true;showToast('Red recuperada');scheduleSave();});
 window.addEventListener('offline',()=>{isOnline=false;showToast('Sin conexion - modo offline');});
 
-// ── Cargar Google APIs ──
-function loadGoogleAPIs(){
-  return new Promise(resolve=>{
-    if(window.gapi&&window.google){resolve();return;}
-    const s1=document.createElement('script');
-    s1.src='https://apis.google.com/js/api.js';
-    s1.onload=()=>{
-      gapi.load('client',async()=>{
-        await gapi.client.init({apiKey:GD_API_KEY,discoveryDocs:['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']});
-        const s2=document.createElement('script');
-        s2.src='https://accounts.google.com/gsi/client';
-        s2.onload=resolve;
-        document.head.appendChild(s2);
-      });
-    };
-    document.head.appendChild(s1);
-  });
-}
-
-// ── Login con Google ──
-async function gdLogin(){
-  if(!GD_CLIENT_ID){showToast('Configura tu Client ID de Google primero');return;}
-  await loadGoogleAPIs();
-  return new Promise(resolve=>{
-    const client=google.accounts.oauth2.initTokenClient({
-      client_id:GD_CLIENT_ID,
-      scope:'https://www.googleapis.com/auth/drive.file',
-      callback:async(resp)=>{
-        if(resp.error){showToast('Error al conectar con Google');resolve(false);return;}
-        gdToken=resp.access_token;
-        gapi.client.setToken({access_token:gdToken});
-        gdReady=true;
-        localStorage.setItem('gd_token_ts',Date.now());
-        showToast('✓ Conectado a Google Drive');
-        await gdEnsureFolder();
-        resolve(true);
-      }
-    });
-    client.requestAccessToken();
-  });
-}
-
-// ── Crear/encontrar carpeta BitacoraContCom ──
-async function gdEnsureFolder(){
-  try{
-    // Buscar carpeta existente
-    const res=await gapi.client.drive.files.list({
-      q:`name='${GD_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields:'files(id,name)',spaces:'drive'
-    });
-    if(res.result.files.length>0){
-      gdFolderId=res.result.files[0].id;
-    }else{
-      // Crear carpeta
-      const created=await gapi.client.drive.files.create({
-        resource:{name:GD_FOLDER_NAME,mimeType:'application/vnd.google-apps.folder'},
-        fields:'id'
-      });
-      gdFolderId=created.result.id;
-    }
-    localStorage.setItem('gd_folder_id',gdFolderId);
-    // Buscar archivo de datos existente
-    const res2=await gapi.client.drive.files.list({
-      q:`name='${GD_DATA_FILE}' and '${gdFolderId}' in parents and trashed=false`,
-      fields:'files(id,name)',spaces:'drive'
-    });
-    if(res2.result.files.length>0) gdDataFileId=res2.result.files[0].id;
-    localStorage.setItem('gd_data_file_id',gdDataFileId||'');
-  }catch(e){console.warn('gdEnsureFolder error:',e);}
-}
-
-// ── Guardar todo en Drive (JSON + fotos embebidas) ──
 async function cloudSave(){
-  if(!isOnline){pendingSync=true;showToast('Sin red — se guardará al recuperar conexión');return;}
-  if(!gdReady||!gdToken){pendingSync=true;return;}
+  if(!isOnline){showToast('Sin red — guardado local');return;}
   try{
     updSyncBadge('saving');
     let sitios=null,checks=null;
     try{sitios=JSON.parse(localStorage.getItem(SSK))}catch(e){}
     try{checks=JSON.parse(localStorage.getItem(CK))}catch(e){}
-    // Incluir TODO: texto + fotosData completas
-    const payload=JSON.stringify({registros,sitios,checks,ts:Date.now()});
-    const blob=new Blob([payload],{type:'application/json'});
-    const metadata={name:GD_DATA_FILE,mimeType:'application/json',parents:gdFolderId?[gdFolderId]:[]};
-    const form=new FormData();
-    form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
-    form.append('file',blob);
-    let url,method;
-    if(gdDataFileId){
-      url=`https://www.googleapis.com/upload/drive/v3/files/${gdDataFileId}?uploadType=multipart`;
-      method='PATCH';
-      form.delete('metadata');
-      form.append('metadata',new Blob([JSON.stringify({name:GD_DATA_FILE})],{type:'application/json'}));
-    }else{
-      url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-      method='POST';
-    }
-    const resp=await fetch(url,{method,headers:{'Authorization':'Bearer '+gdToken},body:form});
-    if(resp.ok){
-      const result=await resp.json();
-      if(!gdDataFileId){gdDataFileId=result.id;localStorage.setItem('gd_data_file_id',gdDataFileId);}
-      pendingSync=false;
-      updSyncBadge('ok');
-    }else{
-      updSyncBadge('error');
-      console.warn('cloudSave resp:',resp.status,await resp.text());
-    }
-  }catch(e){updSyncBadge('error');console.warn('cloudSave error:',e);}
+    // Guardar sin fotosData para no exceder límite
+    const regsSinFotos=registros.map(({fotosData,...r})=>r);
+    const payload={registros:regsSinFotos,sitios,checks,ts:Date.now()};
+    const resp=await fetch(FB_URL+'/data.json',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(resp.ok){updSyncBadge('ok');}
+    else{updSyncBadge('error');console.warn('cloudSave error:',resp.status);}
+  }catch(e){updSyncBadge('error');console.warn('cloudSave:',e);}
 }
 
-// ── Cargar desde Drive ──
 async function cloudLoad(){
-  if(!gdReady||!gdToken)return false;
+  if(!isOnline)return false;
   try{
     updSyncBadge('loading');
-    if(!gdFolderId||!gdDataFileId){await gdEnsureFolder();}
-    if(!gdDataFileId)return false;
-    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${gdDataFileId}?alt=media`,{
-      headers:{'Authorization':'Bearer '+gdToken}
-    });
+    const resp=await fetch(FB_URL+'/data.json');
     if(!resp.ok)return false;
     const d=await resp.json();
-    if(d.registros!==undefined){
-      registros=d.registros||[];
+    if(!d)return false;
+    if(d.registros){
+      // Preservar fotosData local
+      let local=[];
+      try{local=JSON.parse(localStorage.getItem(SK)||'[]')}catch(e){}
+      const localMap={};
+      local.forEach(r=>{if(r.fotosData)localMap[r.id]=r.fotosData;});
+      registros=d.registros.map(r=>({...r,fotosData:localMap[r.id]||[]}));
       localStorage.setItem(SK,JSON.stringify(registros));
     }
-    if(d.sitios!==undefined)localStorage.setItem(SSK,JSON.stringify(d.sitios));
-    if(d.checks!==undefined)localStorage.setItem(CK,JSON.stringify(d.checks));
+    if(d.sitios)localStorage.setItem(SSK,JSON.stringify(d.sitios));
+    if(d.checks)localStorage.setItem(CK,JSON.stringify(d.checks));
     updSyncBadge('ok');
     return true;
-  }catch(e){updSyncBadge('error');console.warn('cloudLoad error:',e);return false;}
+  }catch(e){updSyncBadge('error');console.warn('cloudLoad:',e);return false;}
 }
 
 function updSyncBadge(estado){
@@ -830,20 +712,14 @@ function updSyncBadge(estado){
     loading:{txt:'Sincronizando...', bg:'var(--info-bg)',col:'var(--info-text)'},
     ok:{txt:'✓ Sincronizado', bg:'var(--green-bg)',col:'var(--green-text)'},
     error:{txt:'⚠ Error sync', bg:'var(--red-bg)',col:'var(--red-text)'},
-    offline:{txt:'Sin red', bg:'var(--bg)',col:'var(--text3)'},
   };
   const s=cfg[estado]||cfg.ok;
-  b.textContent=s.txt; b.style.background=s.bg; b.style.color=s.col;
+  b.textContent=s.txt;b.style.background=s.bg;b.style.color=s.col;
   b.style.display='inline-block';
 }
 
 function scheduleSave(){clearTimeout(syncTimer);syncTimer=setTimeout(cloudSave,2000);}
-
-// ── Inicializar IDs guardados ──
-function gdRestoreIds(){
-  gdFolderId=localStorage.getItem('gd_folder_id')||null;
-  gdDataFileId=localStorage.getItem('gd_data_file_id')||null;
-}
+function gdRestoreIds(){}
 // ─────────────────────────────────────────────────────────────
 let registros=[], tipoSel='', fotosData=[], vozData=[], filtroActual='todos', gpsData=null, invFiltro='todos';
 let mediaRec=null, grabando=false, audioChunks=[];
@@ -887,19 +763,9 @@ async function load(){
   gdRestoreIds();
   try{registros=JSON.parse(localStorage.getItem(SK)||'[]')}catch(e){registros=[]}
   updBadge();renderHistorial();
-  if(!GD_CLIENT_ID){
-    showToast('Configura Google Drive para sincronizar');
-    return;
-  }
-  // Si hay token en sesión, intentar sync automático
-  const tokenTs=localStorage.getItem('gd_token_ts');
-  if(gdReady&&gdToken){
-    showToast('Sincronizando...');
+  if(isOnline){
     const ok=await cloudLoad();
     if(ok){showToast('✓ Sincronizado — '+registros.length+' registros');updBadge();renderHistorial();renderSitios();renderChecklist();}
-  }else{
-    // Mostrar botón de login en topbar
-    showToast('Toca ☁ para conectar Google Drive');
   }
 }
 function save(){localStorage.setItem(SK,JSON.stringify(registros));updBadge();scheduleSave();}
@@ -1209,7 +1075,19 @@ function filtrar(tipo,el){
   renderHistorial();
 }
 
-function exportarExcel(){
+async function exportarExcel(){
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      s.onload=res;s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  const XLSX=window.XLSX;
+  _exportarExcel_impl();
+}
+function _exportarExcel_impl(){
   if(!registros.length){showToast('Sin registros para exportar');return}
   const data=[
     ['#','Fecha','Entrada','Salida','Tiempo Extra','Tipo','No. Licencia','Folio','Sitio','Responsable','RPE','Equipo','Descripción','Notas técnicas','Fotos','Notas voz'],
@@ -1657,9 +1535,9 @@ function delClave(id){
 
 
 async 
-function abrirConfigDrive(){
-  document.getElementById('cfg-client-id').value=GD_CLIENT_ID||localStorage.getItem('gd_client_id')||'';
-  document.getElementById('cfg-api-key').value=GD_API_KEY||localStorage.getItem('gd_api_key')||'';
+function sincronizarManual(){
+  document.getElementById('cfg-client-id').value='';
+  document.getElementById('cfg-api-key').value='';
   document.getElementById('drive-config-modal').style.display='flex';
 }
 
@@ -1675,11 +1553,6 @@ async function guardarConfigDrive(){
 
 async function sincronizarManual(){
   if(!isOnline){showToast('Sin red — no se puede sincronizar');return;}
-  if(!gdReady||!gdToken){
-    showToast('Conectando con Google Drive...');
-    const ok=await gdLogin();
-    if(!ok)return;
-  }
   showToast('Sincronizando...');
   const ok=await cloudLoad();
   if(ok){
@@ -1705,13 +1578,22 @@ function hideBanner(){
   localStorage.setItem('banner_shown','1');
 }
 
-load();setFechaHora();updBadge();calcHoras();renderInventario();renderEnlaces();initReportes();
-// Mostrar badge de conexión
-const sb=document.getElementById('sync-badge');
-if(sb){sb.style.display='inline-block';sb.textContent=GD_CLIENT_ID?'☁ Conectar Drive':'⚙ Config. Drive';}
-if(!localStorage.getItem('banner_shown')&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
-  document.getElementById('install-banner').style.display='flex';
-}
+document.addEventListener('DOMContentLoaded',async()=>{
+  load();
+  setFechaHora();
+  updBadge();
+  calcHoras();
+  renderInventario();
+  renderEnlaces();
+  initReportes();
+  // Badge de Drive
+  const sb=document.getElementById('sync-badge');
+  if(sb){sb.style.display='inline-block';sb.textContent='↺ Sincronizar';}
+  // Banner instalación móvil
+  if(!localStorage.getItem('banner_shown')&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
+    document.getElementById('install-banner').style.display='flex';
+  }
+});
 </script>
 </body>
 </html>
