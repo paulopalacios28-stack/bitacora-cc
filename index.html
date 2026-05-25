@@ -654,7 +654,7 @@ const SK='bitacora_cc_v2', SSK='sitios_cc_v2', CK='check_cc_v2';
 const INV_KEY='bitacora_inv_v1', ENL_KEY='bitacora_enl_v1', CV_KEY='bitacora_claves_v1', PIN_KEY='bitacora_pin_hash';
 
 // ── Firebase Sync ─────────────────────────────────────────────
-const FB_URL='https://bitacora-contcom-default-rtdb.firebaseio.com';
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwc3x6duob6-GUibFmA9qr8TetUq2vIrVPuLyEeahum-9uR-5RVEz_nlxDt0t4OhxX2/exec';
 let syncTimer=null, isOnline=navigator.onLine;
 
 window.addEventListener('online',()=>{isOnline=true;showToast('Red recuperada');scheduleSave();});
@@ -667,42 +667,41 @@ async function cloudSave(){
     let sitios=null,checks=null;
     try{sitios=JSON.parse(localStorage.getItem(SSK))}catch(e){}
     try{checks=JSON.parse(localStorage.getItem(CK))}catch(e){}
-    // Guardar sin fotosData para no exceder límite
-    const regsSinFotos=registros.map(({fotosData,...r})=>r);
-    const payload={registros:regsSinFotos,sitios,checks,ts:Date.now()};
-    const resp=await fetch(FB_URL+'/data.json',{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    });
-    if(resp.ok){updSyncBadge('ok');}
-    else{updSyncBadge('error');console.warn('cloudSave error:',resp.status);}
+    // Guardar cada registro en el Sheet
+    for(const reg of registros){
+      await fetch(SCRIPT_URL,{
+        method:'POST',
+        body:JSON.stringify({action:'guardar',registro:reg})
+      });
+    }
+    // Guardar sitios y checks en localStorage (no en Sheet)
+    updSyncBadge('ok');
   }catch(e){updSyncBadge('error');console.warn('cloudSave:',e);}
 }
+
 
 async function cloudLoad(){
   if(!isOnline)return false;
   try{
     updSyncBadge('loading');
-    const resp=await fetch(FB_URL+'/data.json');
+    const resp=await fetch(SCRIPT_URL);
     if(!resp.ok)return false;
     const d=await resp.json();
-    if(!d)return false;
-    if(d.registros){
+    if(!d.ok)return false;
+    if(d.registros&&d.registros.length>0){
       // Preservar fotosData local
       let local=[];
       try{local=JSON.parse(localStorage.getItem(SK)||'[]')}catch(e){}
       const localMap={};
-      local.forEach(r=>{if(r.fotosData)localMap[r.id]=r.fotosData;});
-      registros=d.registros.map(r=>({...r,fotosData:localMap[r.id]||[]}));
+      local.forEach(r=>{if(r.fotosData&&r.fotosData.length)localMap[r.id]=r.fotosData;});
+      registros=d.registros.map(r=>({...r,fotosData:localMap[r.id]||r.fotosData||[]}));
       localStorage.setItem(SK,JSON.stringify(registros));
     }
-    if(d.sitios)localStorage.setItem(SSK,JSON.stringify(d.sitios));
-    if(d.checks)localStorage.setItem(CK,JSON.stringify(d.checks));
     updSyncBadge('ok');
     return true;
   }catch(e){updSyncBadge('error');console.warn('cloudLoad:',e);return false;}
 }
+
 
 function updSyncBadge(estado){
   const b=document.getElementById('sync-badge');
