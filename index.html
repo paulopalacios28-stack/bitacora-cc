@@ -990,6 +990,8 @@ function renderHistorial(){
       </div>
       <div class="reg-actions">
         <button class="reg-btn expand-btn" onclick="toggleDet(${r.id})" title="Ver detalle" aria-label="Ver detalle"><i class="ti ti-chevron-down"></i></button>
+        <button class="reg-btn" onclick="compartirWA(${r.id})" title="Compartir por WhatsApp" aria-label="WhatsApp" style="color:#25D366"><i class="ti ti-brand-whatsapp"></i></button>
+        <button class="reg-btn" onclick="editarReg(${r.id})" title="Editar" aria-label="Editar" style="color:var(--blue2)"><i class="ti ti-pencil"></i></button>
         <button class="reg-btn" onclick="delReg(${r.id})" title="Eliminar" aria-label="Eliminar registro"><i class="ti ti-trash"></i></button>
       </div>
     </div>`).join('');
@@ -1461,6 +1463,38 @@ function delClave(id){
   if(!confirm('¿Eliminar esta entrada?'))return;
   saveClaves(getClaves().filter(c=>c.id!==id));
   renderClaves();
+}
+
+
+function compartirWA(id){
+  const r=registros.find(x=>x.id===id);
+  if(!r)return;
+  const fecha=r.fecha||'';
+  const hora=r.hora||'';
+  const tipo=(r.tipo||'').toUpperCase();
+  const sitio=r.sitio||'Sin sitio';
+  const equipo=r.equipo?'\n🔧 Equipo: '+r.equipo:'';
+  const horario=r.entrada?'\n⏰ Horario: '+r.entrada+' – '+r.salida+(r.horasExtra&&r.horasExtra!=='Sin tiempo extra'?' ('+r.horasExtra+')':''):'';
+  const desc=r.desc||'';
+  const notas=r.notas?'\n\n📋 Notas técnicas:\n'+r.notas:'';
+  const fotos=r.fotos>0?'\n📷 '+r.fotos+' foto(s) de evidencia':'';
+  const resp=r.responsable?'\n👤 '+r.responsable+(r.rpe?' (RPE: '+r.rpe+')':''):'';
+  const lic=r.licencia?'\n📄 Lic: '+r.licencia+(r.folio?' · Folio: '+r.folio:''):'';
+
+  const msg=
+    '🔔 *BITÁCORA C&C — CFE ZONA CBA*\n'+
+    '━━━━━━━━━━━━━━━━━━\n'+
+    '📅 *'+fecha+'*  '+hora+'\n'+
+    '🏷 Tipo: *'+tipo+'*\n'+
+    '📍 Sitio: *'+sitio+'*'+
+    equipo+horario+resp+lic+'\n\n'+
+    '📝 *Actividad:*\n'+desc+
+    notas+fotos+'\n\n'+
+    '━━━━━━━━━━━━━━━━━━\n'+
+    '_Enviado desde Bitácora ContCom_';
+
+  const url='https://wa.me/?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
 }
 
 function showToast(msg){
