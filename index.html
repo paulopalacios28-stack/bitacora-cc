@@ -758,15 +758,17 @@ function calcHoras(){
   }
 }
 
-async function load(){
-  gdRestoreIds();
+function load(){
   try{registros=JSON.parse(localStorage.getItem(SK)||'[]')}catch(e){registros=[]}
-  updBadge();renderHistorial();
+  updBadge();
+  renderHistorial();
   if(isOnline){
-    const ok=await cloudLoad();
-    if(ok){showToast('✓ Sincronizado — '+registros.length+' registros');updBadge();renderHistorial();renderSitios();renderChecklist();}
+    cloudLoad().then(ok=>{
+      if(ok){showToast('✓ Sincronizado — '+registros.length+' registros');updBadge();renderHistorial();renderSitios();renderChecklist();}
+    }).catch(e=>console.warn('sync:',e));
   }
 }
+
 function save(){localStorage.setItem(SK,JSON.stringify(registros));updBadge();scheduleSave();}
 function updBadge(){document.getElementById('total-badge').textContent=registros.length+' registro'+(registros.length!==1?'s':'')}
 
@@ -1533,22 +1535,15 @@ function delClave(id){
 }
 
 
-async 
-function sincronizarManual(){
-  document.getElementById('cfg-client-id').value='';
-  document.getElementById('cfg-api-key').value='';
-  document.getElementById('drive-config-modal').style.display='flex';
+async function sincronizarManual(){
+  if(!isOnline){showToast('Sin red');return;}
+  showToast('Sincronizando...');
+  const ok=await cloudLoad();
+  if(ok){showToast('✓ Sincronizado — '+registros.length+' registros');updBadge();renderHistorial();renderSitios();renderChecklist();}
+  else{showToast('⚠ Error de sincronización');}
 }
 
-async function guardarConfigDrive(){
-  const cid=document.getElementById('cfg-client-id').value.trim();
-  const akey=document.getElementById('cfg-api-key').value.trim();
-  if(!cid||!akey){showToast('Completa ambos campos');return;}
-  localStorage.setItem('gd_client_id',cid);
-  localStorage.setItem('gd_api_key',akey);
-  document.getElementById('drive-config-modal').style.display='none';
-  showToast('Configuración guardada — recarga la página para aplicar');
-}
+
 
 async function sincronizarManual(){
   if(!isOnline){showToast('Sin red — no se puede sincronizar');return;}
@@ -1577,22 +1572,18 @@ function hideBanner(){
   localStorage.setItem('banner_shown','1');
 }
 
-document.addEventListener('DOMContentLoaded',async()=>{
-  load();
-  setFechaHora();
-  updBadge();
-  calcHoras();
-  renderInventario();
-  renderEnlaces();
-  initReportes();
-  // Badge de Drive
-  const sb=document.getElementById('sync-badge');
-  if(sb){sb.style.display='inline-block';sb.textContent='↺ Sincronizar';}
-  // Banner instalación móvil
-  if(!localStorage.getItem('banner_shown')&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
-    document.getElementById('install-banner').style.display='flex';
-  }
-});
+load();
+setFechaHora();
+updBadge();
+calcHoras();
+renderInventario();
+renderEnlaces();
+initReportes();
+const sb=document.getElementById('sync-badge');
+if(sb){sb.style.display='inline-block';sb.textContent='↺ Sincronizar';}
+if(!localStorage.getItem('banner_shown')&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
+  document.getElementById('install-banner').style.display='flex';
+}
 </script>
 </body>
 </html>
