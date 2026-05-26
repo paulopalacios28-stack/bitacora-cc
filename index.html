@@ -663,10 +663,15 @@ async function cloudSave(){
   if(!isOnline){showToast('Sin red — guardado local');return;}
   try{
     updSyncBadge('saving');
+    let saved=0;
     for(const reg of registros){
-      await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'guardar',registro:reg})});
+      try{
+        const r=await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'guardar',registro:reg})});
+        if(r.ok)saved++;
+      }catch(ex){console.warn('reg save error:',ex);}
     }
     updSyncBadge('ok');
+    showToast('✓ '+saved+' registro(s) en Google Sheets');
   }catch(e){updSyncBadge('error');console.warn('cloudSave:',e);}
 }
 
@@ -807,11 +812,25 @@ function updSitio(){
 }
 
 function addFotos(input){
-  Array.from(input.files).forEach(file=>{
-    const r=new FileReader();
-    r.onload=e=>addMarcaAgua(e.target.result, file.name);
-    r.readAsDataURL(file);
-  });
+  const files=Array.from(input.files);
+  if(!gpsData&&navigator.geolocation){
+    // Intentar obtener GPS antes de procesar fotos
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        gpsData={lat:pos.coords.latitude.toFixed(6),lng:pos.coords.longitude.toFixed(6),acc:Math.round(pos.coords.accuracy)};
+        const el=document.getElementById('gps-status');
+        if(el){el.textContent='GPS: ±'+gpsData.acc+'m';el.style.color='var(--green)';}
+        files.forEach(file=>{const r=new FileReader();r.onload=e=>addMarcaAgua(e.target.result,file.name);r.readAsDataURL(file);});
+      },
+      _err=>{
+        // Sin GPS, procesar igual
+        files.forEach(file=>{const r=new FileReader();r.onload=e=>addMarcaAgua(e.target.result,file.name);r.readAsDataURL(file);});
+      },
+      {enableHighAccuracy:true,timeout:8000,maximumAge:0}
+    );
+  }else{
+    files.forEach(file=>{const r=new FileReader();r.onload=e=>addMarcaAgua(e.target.result,file.name);r.readAsDataURL(file);});
+  }
 }
 
 function addMarcaAgua(imgData, nombre){
