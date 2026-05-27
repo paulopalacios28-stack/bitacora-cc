@@ -449,25 +449,36 @@ select{cursor:pointer}
   <!-- ══ INVENTARIO EQUIPOS ══ -->
   <div id="sec-inventario" class="section">
     <div class="card">
-      <div class="card-title"><i class="ti ti-devices"></i> Inventario de Equipos
-        <button class="btn-secondary" style="padding:5px 10px;font-size:11px;margin-left:auto" onclick="showAddEquipo()"><i class="ti ti-plus"></i> Agregar</button>
+      <div class="card-title"><i class="ti ti-devices"></i> Inventario de Equipos</div>
+
+      <!-- Selector de categoría -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        <button class="inv-cat-btn active" onclick="selCatInv('subestaciones',this)" style="padding:10px;border:1.5px solid var(--blue2);border-radius:var(--radius-sm);background:var(--blue);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+          <i class="ti ti-building-factory" style="display:block;font-size:20px;margin-bottom:3px"></i>Subestaciones
+        </button>
+        <button class="inv-cat-btn" onclick="selCatInv('repetidores',this)" style="padding:10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+          <i class="ti ti-antenna" style="display:block;font-size:20px;margin-bottom:3px"></i>Repetidores
+        </button>
+        <button class="inv-cat-btn" onclick="selCatInv('restauradores',this)" style="padding:10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+          <i class="ti ti-refresh-alert" style="display:block;font-size:20px;margin-bottom:3px"></i>Restauradores
+        </button>
       </div>
+
+      <!-- Botones de tipo según categoría -->
+      <div id="inv-tipos" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap"></div>
+
+      <!-- Botón agregar -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn-secondary" style="padding:6px 12px;font-size:11px" onclick="showAddEquipo()"><i class="ti ti-plus"></i> Agregar equipo</button>
+        <button class="btn-secondary" style="padding:6px 12px;font-size:11px;margin-left:6px" onclick="sincronizarInventario()"><i class="ti ti-refresh"></i> Sincronizar</button>
+      </div>
+
+      <!-- Formulario agregar -->
       <div id="inv-form" style="display:none;margin-bottom:14px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);border:0.5px solid var(--border)">
         <div class="form-row">
           <div class="form-group"><label>Nombre / ID</label><input type="text" id="inv-nombre" placeholder="Ej: Radwin CBA-01"></div>
           <div class="form-group"><label>Tipo</label>
-            <select id="inv-tipo">
-              <option value="microondas">Microondas</option>
-              <option value="radio">Radio VHF/UHF</option>
-              <option value="scada">SCADA / RTU</option>
-              <option value="utr_poste">UTR Poste</option>
-              <option value="simoce">SIMOCE / UTR</option>
-              <option value="switch">Switch / Router</option>
-              <option value="antena">Antena</option>
-              <option value="cargador">Cargador de Baterías</option>
-              <option value="medidor">Medidor</option>
-              <option value="otro">Otro</option>
-            </select>
+            <select id="inv-tipo"></select>
           </div>
         </div>
         <div class="form-row">
@@ -478,7 +489,7 @@ select{cursor:pointer}
           <div class="form-group"><label>Sitio</label>
             <select id="inv-sitio">
               <option value="">— Seleccionar —</option>
-              <optgroup label="Subestaciones">
+              <optgroup label="Subestaciones" id="inv-sitio-sust">
                 <option>S.E. CABORCA</option><option>S.E. ARROYO SECO</option><option>S.E. ALTAR</option>
                 <option>S.E. LLANO BLANCO</option><option>S.E. DESEO</option><option>S.E. BIZANI</option>
                 <option>S.E. SIEMPRE VIVA</option><option>S.E. ANTIMONIO</option><option>S.E. SAHUARO</option>
@@ -487,7 +498,6 @@ select{cursor:pointer}
                 <option>REP CERRO CABORCA</option><option>REP CERRO ENCHILAYAS</option>
                 <option>REP GARAMBULLO</option><option>REP STA FELICITA</option><option>REP ALTAR</option>
               </optgroup>
-              <option value="oficina">Oficina CBA</option>
             </select>
           </div>
           <div class="form-group"><label>Estado</label>
@@ -499,17 +509,10 @@ select{cursor:pointer}
             </select>
           </div>
         </div>
-        <div class="form-row full"><div class="form-group"><label>Notas</label><input type="text" id="inv-notas" placeholder="Modelo, firmware, observaciones..."></div></div>
+        <div class="form-row full"><div class="form-group"><label>Notas</label><input type="text" id="inv-notas" placeholder="Modelo, firmware, IP, observaciones..."></div></div>
         <div class="actions"><button class="btn-primary" onclick="guardarEquipo()"><i class="ti ti-device-floppy"></i> Guardar equipo</button></div>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('todos')">Todos</button>
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('microondas')">Microondas</button>
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('radio')">Radio</button>
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('scada')">SCADA</button>
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('cargador')">Cargadores</button>
-        <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="filtrarInv('falla')">En falla</button>
-      </div>
+
       <div id="inv-lista"></div>
     </div>
   </div>
@@ -763,6 +766,13 @@ function load(){
     cloudLoad().then(ok=>{
       if(ok){showToast('✓ Sincronizado — '+registros.length+' registros');updBadge();renderHistorial();renderSitios();renderChecklist();}
     }).catch(e=>console.warn('sync:',e));
+    // También sincronizar inventario al cargar
+    fetch(SCRIPT_URL+'?tipo=inventario').then(r=>r.json()).then(d=>{
+      if(d.ok&&d.equipos&&d.equipos.length){
+        localStorage.setItem(INV_KEY,JSON.stringify(d.equipos));
+        renderInventario();
+      }
+    }).catch(e=>console.warn('inv load:',e));
   }
 }
 
@@ -1121,18 +1131,98 @@ function closeLightbox(){
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLightbox();closeModalFotosBtn()}});
 
 
-// ══ INVENTARIO DE EQUIPOS ═══════════════════════════════════════
-const INV_ICONS={microondas:'ti-wave-sine',radio:'ti-radio',scada:'ti-cpu',utr_poste:'ti-access-point',simoce:'ti-server',switch:'ti-router',antena:'ti-antenna',cargador:'ti-battery-charging',medidor:'ti-gauge',otro:'ti-tool'};
-const INV_LABELS={microondas:'Microondas',radio:'Radio VHF/UHF',scada:'SCADA/RTU',utr_poste:'UTR Poste',simoce:'SIMOCE/UTR',switch:'Switch/Router',antena:'Antena',cargador:'Cargador Bat.',medidor:'Medidor',otro:'Otro'};
+
+// ══ INVENTARIO CON CATEGORÍAS ══════════════════════════════════
+const INV_CATS = {
+  subestaciones: {
+    label: 'Subestaciones',
+    tipos: [
+      {val:'utr', lbl:'UTR'},
+      {val:'radio', lbl:'Radio VHF/UHF'},
+      {val:'cargador', lbl:'Cargador Bat.'},
+      {val:'microondas', lbl:'Microondas'},
+      {val:'simoce', lbl:'SIMOCE'},
+      {val:'medidor', lbl:'Medidor'},
+    ]
+  },
+  repetidores: {
+    label: 'Repetidores',
+    tipos: [
+      {val:'radio', lbl:'Radio VHF/UHF'},
+      {val:'cargador', lbl:'Cargador Bat.'},
+      {val:'microondas', lbl:'Microondas'},
+    ]
+  },
+  restauradores: {
+    label: 'Restauradores',
+    tipos: [
+      {val:'utr', lbl:'UTR'},
+      {val:'radio', lbl:'Radio VHF/UHF'},
+    ]
+  }
+};
+
+let invCategoria = 'subestaciones';
+let invTipoFiltro = 'todos';
+
+const INV_ICONS={microondas:'ti-wave-sine',radio:'ti-radio',scada:'ti-cpu',utr:'ti-cpu',utr_poste:'ti-access-point',simoce:'ti-server',switch:'ti-router',antena:'ti-antenna',cargador:'ti-battery-charging',medidor:'ti-gauge',otro:'ti-tool'};
 const INV_EST_COLORS={operativo:'var(--green-bg)',falla:'var(--red-bg)',mantenimiento:'var(--amber-bg)',baja:'var(--border)'};
 const INV_EST_TXT={operativo:'✅ Operativo',falla:'🔴 En falla',mantenimiento:'🔧 Mantenimiento',baja:'⛔ De baja'};
 
+function selCatInv(cat, el){
+  invCategoria = cat;
+  invTipoFiltro = 'todos';
+  // Actualizar botones categoría
+  document.querySelectorAll('.inv-cat-btn').forEach(b=>{
+    b.style.background='var(--surface)';
+    b.style.color='var(--text2)';
+    b.style.borderColor='var(--border2)';
+  });
+  el.style.background='var(--blue)';
+  el.style.color='#fff';
+  el.style.borderColor='var(--blue2)';
+  // Actualizar tipos disponibles
+  renderTiposInv();
+  // Actualizar select de tipos en formulario
+  actualizarSelectTipos();
+  renderInventario();
+}
+
+function renderTiposInv(){
+  const cat = INV_CATS[invCategoria];
+  const cont = document.getElementById('inv-tipos');
+  if(!cont) return;
+  let html = `<button onclick="filtrarInvTipo('todos',this)" class="filter-btn ${invTipoFiltro==='todos'?'active':''}">Todos</button>`;
+  cat.tipos.forEach(t=>{
+    html += `<button onclick="filtrarInvTipo('${t.val}',this)" class="filter-btn ${invTipoFiltro===t.val?'active':''}">${t.lbl}</button>`;
+  });
+  // Botón fallas siempre visible
+  html += `<button onclick="filtrarInvTipo('falla',this)" class="filter-btn ${invTipoFiltro==='falla'?'active':''}" style="color:var(--red-text)">🔴 Fallas</button>`;
+  cont.innerHTML = html;
+}
+
+function actualizarSelectTipos(){
+  const cat = INV_CATS[invCategoria];
+  const sel = document.getElementById('inv-tipo');
+  if(!sel) return;
+  sel.innerHTML = cat.tipos.map(t=>`<option value="${t.val}">${t.lbl}</option>`).join('');
+}
+
+function filtrarInvTipo(tipo, el){
+  invTipoFiltro = tipo;
+  document.querySelectorAll('#inv-tipos .filter-btn').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderInventario();
+}
+
 function getEquipos(){try{return JSON.parse(localStorage.getItem(INV_KEY)||'[]')}catch(e){return[]}}
-function saveEquipos(d){localStorage.setItem(INV_KEY,JSON.stringify(d));}
+function saveEquipos(d){localStorage.setItem(INV_KEY,JSON.stringify(d));scheduleSaveInventario();}
 
 function showAddEquipo(){
   const f=document.getElementById('inv-form');
-  f.style.display=f.style.display==='none'?'block':'none';
+  const visible = f.style.display !== 'none';
+  f.style.display = visible ? 'none' : 'block';
+  if(!visible) actualizarSelectTipos();
 }
 
 function guardarEquipo(){
@@ -1140,6 +1230,7 @@ function guardarEquipo(){
   if(!nombre){showToast('Ingresa el nombre del equipo');return;}
   const eq={
     id:Date.now(),
+    categoria: invCategoria,
     nombre,
     tipo:document.getElementById('inv-tipo').value,
     serie:document.getElementById('inv-serie').value.trim(),
@@ -1152,22 +1243,32 @@ function guardarEquipo(){
   const lista=getEquipos();
   lista.unshift(eq);
   saveEquipos(lista);
-  ['inv-nombre','inv-serie','inv-numcfe','inv-notas'].forEach(id=>document.getElementById(id).value='');
+  ['inv-nombre','inv-serie','inv-numcfe','inv-notas'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('inv-form').style.display='none';
   renderInventario();
   showToast('Equipo guardado');
 }
 
-function filtrarInv(f){invFiltro=f;renderInventario();}
+function filtrarInv(f){invTipoFiltro=f;renderInventario();}
 
 function renderInventario(){
+  renderTiposInv();
   let lista=getEquipos();
-  if(invFiltro!=='todos'){
-    if(invFiltro==='falla') lista=lista.filter(e=>e.estado==='falla');
-    else lista=lista.filter(e=>e.tipo===invFiltro);
-  }
+  // Filtrar por categoría
+  lista = lista.filter(e=>e.categoria===invCategoria);
+  // Filtrar por tipo o falla
+  if(invTipoFiltro==='falla') lista=lista.filter(e=>e.estado==='falla');
+  else if(invTipoFiltro!=='todos') lista=lista.filter(e=>e.tipo===invTipoFiltro);
+
   const el=document.getElementById('inv-lista');
-  if(!lista.length){el.innerHTML='<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin equipos registrados</div>';return;}
+  if(!el) return;
+  if(!lista.length){
+    el.innerHTML='<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin equipos en esta categoría</div>';
+    return;
+  }
+
+  const INV_LABELS={microondas:'Microondas',radio:'Radio VHF/UHF',scada:'SCADA/RTU',utr:'UTR',utr_poste:'UTR Poste',simoce:'SIMOCE',switch:'Switch/Router',antena:'Antena',cargador:'Cargador Bat.',medidor:'Medidor',otro:'Otro'};
+
   el.innerHTML=lista.map(e=>`
     <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)">
       <div style="width:36px;height:36px;border-radius:8px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -1191,6 +1292,41 @@ function delEquipo(id){
   saveEquipos(getEquipos().filter(e=>e.id!==id));
   renderInventario();
 }
+
+// Sincronización inventario con Google Sheets
+async function sincronizarInventario(){
+  if(!isOnline){showToast('Sin red');return;}
+  showToast('Sincronizando inventario...');
+  try{
+    // Guardar inventario local en Sheet
+    const equipos = getEquipos();
+    const resp = await fetch(SCRIPT_URL,{
+      method:'POST',
+      body:JSON.stringify({action:'guardarInventario', equipos})
+    });
+    // Cargar inventario de Sheet
+    const resp2 = await fetch(SCRIPT_URL+'?tipo=inventario');
+    if(resp2.ok){
+      const d = await resp2.json();
+      if(d.ok && d.equipos){
+        localStorage.setItem(INV_KEY, JSON.stringify(d.equipos));
+        renderInventario();
+        showToast('✓ Inventario sincronizado — '+d.equipos.length+' equipos');
+      }
+    }
+  }catch(e){showToast('⚠ Error al sincronizar inventario');console.warn(e);}
+}
+
+function scheduleSaveInventario(){
+  if(!isOnline)return;
+  clearTimeout(window._invTimer);
+  window._invTimer=setTimeout(()=>{
+    const equipos=getEquipos();
+    fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'guardarInventario',equipos})})
+      .catch(e=>console.warn('inv save:',e));
+  },2000);
+}
+
 
 // ══ ENLACES / SEMAFORIZACIÓN ════════════════════════════════════
 function getEnlaces(){try{return JSON.parse(localStorage.getItem(ENL_KEY)||'[]')}catch(e){return[]}}
